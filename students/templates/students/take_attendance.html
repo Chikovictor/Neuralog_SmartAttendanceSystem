@@ -1,0 +1,203 @@
+{% extends "students/base.html" %}
+
+{% block breadcrumbs %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-3">
+      <li class="breadcrumb-item"><a href="{% url 'students:unit_list' %}">Home</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'students:unit_detail' unit.id %}">{{ unit.code }}</a></li>
+      <li class="breadcrumb-item active">Take Attendance</li>
+    </ol>
+  </nav>
+{% endblock %}
+
+{% block content %}
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h4 class="card-title mb-3">{{ unit.code }} Attendance</h4>
+          <video id="video" class="w-100 border rounded" autoplay playsinline></video>
+          <canvas id="canvas" class="d-none"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="mb-3">Capture Controls</h5>
+          <button id="startBtn" class="btn btn-primary w-100 mb-2">Start Capture</button>
+          <div id="spinner" class="text-center my-3 d-none">
+            <div class="spinner-border text-primary" role="status"></div>
+          </div>
+          <div id="status" class="alert alert-info">Initializing camera...</div>
+          <div id="warning" class="alert alert-warning d-none"></div>
+          <div id="registerHint" class="alert alert-secondary d-none"></div>
+          <div class="d-grid gap-2">
+            <a class="btn btn-outline-secondary" href="{% url 'students:unit_detail' unit.id %}">Back to Unit</a>
+          </div>
+        </div>
+      </div>
+      <div class="card shadow-sm mt-3">
+        <div class="card-body">
+          <h6 class="mb-2">No camera?</h6>
+          <p class="text-muted small">Upload an image (liveness will be skipped).</p>
+          <input type="file" id="fallbackImage" class="form-control" accept="image/*">
+          <button id="fallbackBtn" class="btn btn-outline-primary w-100 mt-2">Use Uploaded Image</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const startBtn = document.getElementById("startBtn");
+    const statusEl = document.getElementById("status");
+    const warningEl = document.getElementById("warning");
+    const registerHintEl = document.getElementById("registerHint");
+    const spinner = document.getElementById("spinner");
+    const fallbackInput = document.getElementById("fallbackImage");
+    const fallbackBtn = document.getElementById("fallbackBtn");
+
+    function setStatus(text, type = "info") {
+      statusEl.className = "alert alert-" + type;
+      statusEl.textContent = text;
+    }
+
+    function setWarning(text) {
+      if (text) {
+        warningEl.textContent = text;
+        warningEl.classList.remove("d-none");
+      } else {
+        warningEl.classList.add("d-none");
+      }
+    }
+
+    function setRegisterHint(html) {
+      if (html) {
+        registerHintEl.innerHTML = html;
+        registerHintEl.classList.remove("d-none");
+      } else {
+        registerHintEl.classList.add("d-none");
+      }
+    }
+
+    function setLoading(isLoading) {
+      spinner.classList.toggle("d-none", !isLoading);
+      startBtn.disabled = isLoading;
+      fallbackBtn.disabled = isLoading;
+    }
+
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(";").shift();
+      return "";
+    }
+
+    async function initCamera() {
+      setStatus("Initializing camera...", "info");
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        video.srcObject = stream;
+        await video.play();
+        setStatus("Camera ready. Click Start Capture.", "success");
+      } catch (err) {
+        setStatus(
+          "Camera access denied. Click the camera icon in your browser, allow access, then refresh.",
+          "danger"
+        );
+      }
+    }
+
+    async function captureFrames() {
+      const frames = [];
+      const ctx = canvas.getContext("2d");
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      if (!width || !height) {
+        throw new Error("Camera not ready");
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const frameCount = {{ frame_count|default:6 }};
+      const frameDelay = {{ frame_delay|default:120 }};
+
+      for (let i = 0; i < frameCount; i++) {
+        ctx.drawImage(video, 0, 0, width, height);
+        frames.push(canvas.toDataURL("image/jpeg"));
+        await new Promise((resolve) => setTimeout(resolve, frameDelay));
+      }
+      return frames;
+    }
+
+    async function sendPayload(payload) {
+      setLoading(true);
+      setWarning("");
+      setRegisterHint("");
+      setStatus("Checking liveness...", "info");
+      const response = await fetch("{% url 'students:take_attendance_submit' unit.id %}", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCookie("csrftoken"),
+        },
+        body: JSON.stringify(payload),
+      });
+      setStatus("Processing face recognition...", "info");
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (err) {
+        setStatus("Server error during recognition.", "danger");
+        setLoading(false);
+        return;
+      }
+      if (data.warning) {
+        setWarning(data.warning);
+      }
+      if (!response.ok) {
+        const errMsg = data.error || "Recognition failed.";
+        setStatus(errMsg, "danger");
+        if (data.register_url) {
+          setRegisterHint(
+            `Not registered? <a href="${data.register_url}" class="alert-link">Register student here</a>.`
+          );
+        }
+        setLoading(false);
+        return;
+      }
+      setStatus(data.message || "Attendance recorded.", "success");
+      if (typeof showToast === "function") {
+        showToast(data.message || "Attendance recorded.", "success");
+      }
+      setLoading(false);
+    }
+
+    startBtn.addEventListener("click", async () => {
+      try {
+        setStatus("Capturing frames...", "info");
+        const frames = await captureFrames();
+        await sendPayload({ frames });
+      } catch (err) {
+        setStatus("Camera error or permission denied.", "danger");
+      }
+    });
+
+    fallbackBtn.addEventListener("click", async () => {
+      const file = fallbackInput.files[0];
+      if (!file) {
+        setStatus("Please choose an image first.", "warning");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = async () => {
+        setStatus("Uploading image...", "info");
+        await sendPayload({ image: reader.result, skip_liveness: true });
+      };
+      reader.readAsDataURL(file);
+    });
+
+    initCamera();
+  </script>
+{% endblock %}

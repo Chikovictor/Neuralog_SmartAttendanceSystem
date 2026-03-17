@@ -1,0 +1,25 @@
+{% extends "students/base.html" %}
+
+{% block breadcrumbs %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-3">
+      <li class="breadcrumb-item"><a href="{% url 'students:unit_list' %}">Home</a></li>
+      <li class="breadcrumb-item active">Register Staff</li>
+    </ol>
+  </nav>
+{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+      <div class="bg-white p-4 rounded-3 shadow-sm">
+        <h3 class="mb-3">Register Staff Account</h3>
+        <form method="post">
+          {% csrf_token %}
+          {{ form.as_p }}
+          <button class="btn btn-primary" type="submit">Create Staff</button>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "students/base.html" %}
+
+{% block breadcrumbs %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-3">
+      <li class="breadcrumb-item"><a href="{% url 'students:unit_list' %}">Home</a></li>
+      <li class="breadcrumb-item active">{{ unit.code }}</li>
+    </ol>
+  </nav>
+{% endblock %}
+
+{% block content %}
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h3 class="card-title">{{ unit.code }} - {{ unit.name }}</h3>
+      <p class="text-muted mb-4">
+        Lecturer: {{ unit.lecturer.get_full_name|default:unit.lecturer.username }}
+      </p>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-primary" href="{% url 'students:take_attendance' unit.id %}">Take Attendance</a>
+        <a class="btn btn-outline-secondary" href="{% url 'students:attendance_report' unit.id %}">View Reports</a>
+        <a class="btn btn-outline-light border" href="{% url 'students:unit_list' %}">Back to Units</a>
+      </div>
+    </div>
+  </div>
+{% endblock %}

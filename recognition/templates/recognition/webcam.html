@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="bg-white p-4 rounded-3 shadow-sm">
+    <h3 class="mb-3">Webcam Attendance</h3>
+    <p class="text-muted">Please look at the camera and blink naturally.</p>
+    <div class="row g-3">
+      <div class="col-md-8">
+        <video id="video" class="w-100 border rounded" autoplay playsinline></video>
+        <canvas id="canvas" class="d-none"></canvas>
+      </div>
+      <div class="col-md-4">
+        <button id="startBtn" class="btn btn-primary w-100 mb-2">Start Capture</button>
+        <div id="status" class="alert alert-info">Idle</div>
+        <div id="warning" class="alert alert-warning d-none"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const statusEl = document.getElementById("status");
+    const warningEl = document.getElementById("warning");
+    const startBtn = document.getElementById("startBtn");
+
+    async function initCamera() {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      video.srcObject = stream;
+    }
+
+    function setStatus(text, type = "info") {
+      statusEl.className = "alert alert-" + type;
+      statusEl.textContent = text;
+    }
+
+    function setWarning(text) {
+      if (text) {
+        warningEl.textContent = text;
+        warningEl.classList.remove("d-none");
+      } else {
+        warningEl.textContent = "";
+        warningEl.classList.add("d-none");
+      }
+    }
+
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(";").shift();
+      return "";
+    }
+
+    async function captureFrames() {
+      const frames = [];
+      const ctx = canvas.getContext("2d");
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      canvas.width = width;
+      canvas.height = height;
+
+      for (let i = 0; i < 12; i++) {
+        ctx.drawImage(video, 0, 0, width, height);
+        frames.push(canvas.toDataURL("image/jpeg"));
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+      return frames;
+    }
+
+    startBtn.addEventListener("click", async () => {
+      startBtn.disabled = true;
+      setWarning("");
+      setStatus("Capturing frames...", "info");
+      try {
+        const frames = await captureFrames();
+        setStatus("Submitting...", "info");
+        const response = await fetch("{% url 'webcam_attendance' %}", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie("csrftoken"),
+          },
+          body: JSON.stringify({ frames }),
+        });
+        const data = await response.json();
+        if (data.warning) {
+          setWarning(data.warning);
+        }
+        if (!response.ok) {
+          const errMsg = data.error || "Failed";
+          const conf = data.confidence !== undefined ? ` (${Number(data.confidence).toFixed(2)}% confidence)` : "";
+          setStatus(errMsg + conf, "danger");
+          return;
+        }
+        const message = data.message || "Attendance processed.";
+        setStatus(message, "success");
+      } catch (err) {
+        setStatus("Camera error or permission denied.", "danger");
+      } finally {
+        startBtn.disabled = false;
+      }
+    });
+
+    initCamera().catch(() => setStatus("Camera not available.", "danger"));
+  </script>
+{% endblock %}

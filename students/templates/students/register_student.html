@@ -1,0 +1,97 @@
+{% extends "students/base.html" %}
+
+{% block breadcrumbs %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-3">
+      <li class="breadcrumb-item"><a href="{% url 'students:unit_list' %}">Home</a></li>
+      <li class="breadcrumb-item active">Register Student</li>
+    </ol>
+  </nav>
+{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h3 class="mb-3">Register Student</h3>
+          <form id="studentForm" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <div id="status" class="alert alert-info">Fill the form and upload face images.</div>
+            <div class="progress d-none mb-3" id="uploadProgress">
+              <div class="progress-bar" role="progressbar" style="width: 0%" id="progressBar">0%</div>
+            </div>
+            <button class="btn btn-primary" type="submit">Save Student</button>
+            <a class="btn btn-outline-secondary" href="{% url 'students:unit_list' %}">Back</a>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById("studentForm");
+    const statusEl = document.getElementById("status");
+    const progressWrap = document.getElementById("uploadProgress");
+    const progressBar = document.getElementById("progressBar");
+
+    function setStatus(text, type = "info") {
+      statusEl.className = "alert alert-" + type;
+      statusEl.textContent = text;
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const formData = new FormData(form);
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", window.location.href);
+      xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+      xhr.upload.onloadstart = () => {
+        setStatus("Uploading images... Please wait.", "info");
+        progressWrap.classList.remove("d-none");
+        progressBar.style.width = "0%";
+        progressBar.textContent = "0%";
+      };
+
+      xhr.upload.onprogress = (evt) => {
+        if (evt.lengthComputable) {
+          const percent = Math.round((evt.loaded / evt.total) * 100);
+          progressBar.style.width = percent + "%";
+          progressBar.textContent = percent + "%";
+        }
+      };
+
+      xhr.upload.onloadend = () => {
+        setStatus("Processing face embeddings... This may take a moment.", "info");
+      };
+
+      xhr.onload = () => {
+        let data = {};
+        try {
+          data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+        } catch (err) {
+          data = { message: "Server error while processing images. Check the terminal." };
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          setStatus(data.message || "Student registered.", "success");
+          if (typeof showToast === "function") {
+            showToast(data.message || "Student registered.", "success");
+          }
+          progressWrap.classList.add("d-none");
+          form.reset();
+        } else {
+          setStatus(data.message || "Registration failed. Please check the form.", "danger");
+          progressWrap.classList.add("d-none");
+        }
+      };
+
+      xhr.onerror = () => {
+        setStatus("Network error. Please try again.", "danger");
+      };
+
+      xhr.send(formData);
+    });
+  </script>
+{% endblock %}

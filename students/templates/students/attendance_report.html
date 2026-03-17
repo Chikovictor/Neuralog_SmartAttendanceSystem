@@ -1,0 +1,81 @@
+{% extends "students/base.html" %}
+
+{% block breadcrumbs %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-3">
+      <li class="breadcrumb-item"><a href="{% url 'students:unit_list' %}">Home</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'students:unit_detail' unit.id %}">{{ unit.code }}</a></li>
+      <li class="breadcrumb-item active">Reports</li>
+    </ol>
+  </nav>
+{% endblock %}
+
+{% block content %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h4 class="card-title mb-3">Attendance Report - {{ unit.code }}</h4>
+      <form method="get" class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">From</label>
+          <input type="date" name="date_from" value="{{ date_from }}" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">To</label>
+          <input type="date" name="date_to" value="{{ date_to }}" class="form-control">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Student Search</label>
+          <input type="text" name="student" value="{{ student_query }}" class="form-control" placeholder="ID or name">
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-primary w-100" type="submit">Filter</button>
+        </div>
+      </form>
+      <div class="d-flex gap-2 mt-3">
+        <a class="btn btn-outline-secondary" href="?date_from={{ date_from }}&date_to={{ date_to }}&student={{ student_query }}&export=csv">
+          Export CSV
+        </a>
+        <a class="btn btn-outline-secondary" href="?date_from={{ date_from }}&date_to={{ date_to }}&student={{ student_query }}&export=xlsx">
+          Export Excel
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body table-responsive">
+      <table class="table table-striped align-middle">
+        <thead>
+          <tr>
+            <th>Student ID</th>
+            <th>Name</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Confidence</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for record in records %}
+            <tr>
+              <td>{{ record.student.student_id }}</td>
+              <td>{{ record.student.full_name }}</td>
+              <td>{{ record.date }}</td>
+              <td>{{ record.timestamp|date:"H:i" }}</td>
+              <td>{{ record.confidence|floatformat:2 }}%</td>
+              <td>
+                <span class="badge {% if record.status == 'present' %}bg-success{% else %}bg-secondary{% endif %}">
+                  {{ record.status|capfirst }}
+                </span>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="text-center text-muted">No records found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}

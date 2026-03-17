@@ -1,0 +1,11 @@
+Django==4.2
+opencv-python
+opencv-contrib-python
+mtcnn
+keras-facenet
+tensorflow
+mediapipe
+scikit-learn
+pandas
+openpyxl
+Pillow
