@@ -82,7 +82,11 @@
           progressWrap.classList.add("d-none");
           form.reset();
         } else {
-          setStatus(data.message || "Registration failed. Please check the form.", "danger");
+          let errorMsg = data.message || "Registration failed. Please check the form.";
+          if (data.errors) {
+            errorMsg += "\\n\\nForm Errors:\\n" + JSON.stringify(data.errors, null, 2);
+          }
+          setStatus(errorMsg, "danger");
           progressWrap.classList.add("d-none");
         }
       };

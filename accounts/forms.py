@@ -12,6 +12,9 @@ class StaffRegistrationForm(UserCreationForm):
 
     class Meta:
         model = User
+        labels = {
+            "username": "Login Username",
+        }
         fields = (
             "username",
             "email",

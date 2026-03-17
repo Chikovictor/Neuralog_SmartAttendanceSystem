@@ -37,14 +37,6 @@
           </div>
         </div>
       </div>
-      <div class="card shadow-sm mt-3">
-        <div class="card-body">
-          <h6 class="mb-2">No camera?</h6>
-          <p class="text-muted small">Upload an image (liveness will be skipped).</p>
-          <input type="file" id="fallbackImage" class="form-control" accept="image/*">
-          <button id="fallbackBtn" class="btn btn-outline-primary w-100 mt-2">Use Uploaded Image</button>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -56,8 +48,7 @@
     const warningEl = document.getElementById("warning");
     const registerHintEl = document.getElementById("registerHint");
     const spinner = document.getElementById("spinner");
-    const fallbackInput = document.getElementById("fallbackImage");
-    const fallbackBtn = document.getElementById("fallbackBtn");
+
 
     function setStatus(text, type = "info") {
       statusEl.className = "alert alert-" + type;
@@ -85,7 +76,6 @@
     function setLoading(isLoading) {
       spinner.classList.toggle("d-none", !isLoading);
       startBtn.disabled = isLoading;
-      fallbackBtn.disabled = isLoading;
     }
 
     function getCookie(name) {
@@ -167,9 +157,20 @@
         setLoading(false);
         return;
       }
-      setStatus(data.message || "Attendance recorded.", "success");
+      // Multi-face response
+      let fullMsg = data.message;
+      if (data.recognised && data.recognised.length) {
+        fullMsg += '\\nNew: ' + data.recognised.map(r => r.name + ' (' + r.confidence + '%)').join(', ');
+      }
+      if (data.already_marked_count) {
+        fullMsg += '\\nAlready marked: ' + data.already_marked_count;
+      }
+      if (data.unrecognised_faces) {
+        fullMsg += '\\nUnrecognised faces: ' + data.unrecognised_faces;
+      }
+      setStatus(fullMsg, "success");
       if (typeof showToast === "function") {
-        showToast(data.message || "Attendance recorded.", "success");
+        showToast(data.message, "success");
       }
       setLoading(false);
     }
@@ -182,20 +183,6 @@
       } catch (err) {
         setStatus("Camera error or permission denied.", "danger");
       }
-    });
-
-    fallbackBtn.addEventListener("click", async () => {
-      const file = fallbackInput.files[0];
-      if (!file) {
-        setStatus("Please choose an image first.", "warning");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = async () => {
-        setStatus("Uploading image...", "info");
-        await sendPayload({ image: reader.result, skip_liveness: true });
-      };
-      reader.readAsDataURL(file);
     });
 
     initCamera();

@@ -1,6 +1,7 @@
 from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
+from django.core.validators import RegexValidator
 
 
 class Unit(models.Model):
@@ -18,7 +19,17 @@ class Unit(models.Model):
 
 
 class Student(models.Model):
-    student_id = models.CharField(max_length=20, unique=True)
+    student_id = models.CharField(
+        max_length=25,
+        verbose_name="Registration No.",
+        validators=[
+            RegexValidator(
+                r"^[A-Z]{2}\d{2}/\d{5,6}/\d{2}$",
+                "Enter valid Registration No. (e.g. IN13/00159/23)"
+            )
+        ],
+        unique=True
+    )
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
     email = models.EmailField(blank=True, null=True)

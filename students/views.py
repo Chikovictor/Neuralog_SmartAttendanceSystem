@@ -125,7 +125,10 @@ def register_student(request):
             messages.success(request, message)
             return redirect("students:unit_list")
         if request.headers.get("x-requested-with") == "XMLHttpRequest":
-            return JsonResponse({"message": "Please correct the highlighted errors."}, status=400)
+            return JsonResponse({
+                "message": "Please correct the highlighted errors.",
+                "errors": form.errors
+            }, status=400)
     else:
         form = StudentRegistrationForm()
         form.fields["units"].queryset = get_units_for_user(request.user)
@@ -168,12 +171,11 @@ def take_attendance_submit(request, unit_id):
         return JsonResponse({"error": "No frames received."}, status=400)
 
     warning = None
-    skip_liveness = payload.get("skip_liveness")
-    if getattr(settings, "LIVENESS_REQUIRED", True) and not skip_liveness:
+    if getattr(settings, "LIVENESS_REQUIRED", True):
         liveness_ok, liveness_warning = run_liveness_check(frames)
         if liveness_ok is False:
             return JsonResponse(
-                {"error": "Liveness check failed - please look at the camera and blink naturally."},
+                {"error": "Liveness check failed – please look at the camera and blink naturally."},
                 status=400,
             )
         if liveness_warning:
@@ -231,14 +233,26 @@ def attendance_report(request, unit_id):
         return HttpResponseForbidden("You do not have access to this report.")
 
     records = AttendanceRecord.objects.filter(unit=unit).select_related("student")
-    date_from = request.GET.get("date_from")
-    date_to = request.GET.get("date_to")
+    date_from_str = request.GET.get("date_from")
+    date_to_str = request.GET.get("date_to")
     student_query = request.GET.get("student")
 
-    if date_from:
-        records = records.filter(date__gte=date_from)
-    if date_to:
-        records = records.filter(date__lte=date_to)
+    date_from = None
+    if date_from_str and date_from_str.lower() != 'none':
+        try:
+            date_from = datetime.strptime(date_from_str, "%Y-%m-%d").date()
+            records = records.filter(date__gte=date_from)
+        except ValueError:
+            pass  # invalid date
+
+    date_to = None
+    if date_to_str and date_to_str.lower() != 'none':
+        try:
+            date_to = datetime.strptime(date_to_str, "%Y-%m-%d").date()
+            records = records.filter(date__lte=date_to)
+        except ValueError:
+            pass  # invalid date
+
     if student_query:
         records = records.filter(
             Q(student__student_id__icontains=student_query)
@@ -250,7 +264,7 @@ def attendance_report(request, unit_id):
     report_rows = []
 
     if date_from and date_to and date_from == date_to:
-        target_date = datetime.strptime(date_from, "%Y-%m-%d").date()
+        target_date = date_from
         present_map = {rec.student_id: rec for rec in records.filter(date=target_date)}
         for student in unit.students.all():
             rec = present_map.get(student.id)
